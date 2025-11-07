@@ -1,0 +1,18 @@
+Name: Meera Nair
+Email: meera.nair@example.com
+Phone: +91 8877665544
+
+Professional Summary:
+Creative Frontend Developer with 2 years of experience in responsive web design and UI development.
+
+Skills:
+HTML, CSS, JavaScript, React.js, Bootstrap, Figma, Git
+
+Experience:
+Frontend Developer | HCL | May 2022 – Present
+- Built responsive web pages using React and Bootstrap.
+- Collaborated with backend teams for API integration.
+- Improved page load performance by 25%.
+
+Education:
+B.Sc in Computer Science, Kerala University (2021)

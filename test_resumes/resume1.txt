@@ -1,0 +1,18 @@
+Name: John Doe
+Email: john.doe@example.com
+Phone: +91 9876543210
+
+Professional Summary:
+Enthusiastic Python Developer with 3 years of experience in backend development, data analysis, and automation.
+
+Skills:
+Python, Django, Flask, REST API, SQL, Pandas, Git, AWS, Docker
+
+Experience:
+Software Developer | ABC Technologies | Jan 2021 – Present
+- Developed and maintained REST APIs using Flask and Django.
+- Automated data pipelines using Python and Pandas.
+- Deployed web apps on AWS EC2.
+
+Education:
+B.Tech in Computer Science, Anna University (2019)

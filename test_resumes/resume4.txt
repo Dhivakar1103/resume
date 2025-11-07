@@ -1,0 +1,18 @@
+Name: Kavya Iyer
+Email: kavya.iyer@example.com
+Phone: +91 9090909090
+
+Professional Summary:
+Cloud Engineer with expertise in AWS, Azure, and infrastructure automation.
+
+Skills:
+AWS, Azure, Terraform, CI/CD, Jenkins, Docker, Kubernetes, Linux
+
+Experience:
+Cloud Engineer | Wipro | Feb 2020 – Present
+- Managed multi-cloud infrastructure (AWS, Azure).
+- Automated deployments with Terraform and Jenkins.
+- Implemented Kubernetes-based orchestration.
+
+Education:
+B.Tech in Electronics and Communication, VIT (2019)

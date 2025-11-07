@@ -1,0 +1,12 @@
+{
+    "job_description": "Software developer",
+    "required_skills": [
+        "Python",
+        "java",
+        "oracle SQL"
+    ],
+    "required_experience": 1.0,
+    "skill_weight": 0.4,
+    "semantic_weight": 0.3,
+    "experience_weight": 0.3
+}

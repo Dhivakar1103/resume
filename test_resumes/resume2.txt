@@ -1,0 +1,18 @@
+Name: Priya Sharma
+Email: priya.sharma@example.com
+Phone: +91 9123456780
+
+Professional Summary:
+Full Stack Developer with 4+ years of experience in Java, Spring Boot, Angular, and RESTful services.
+
+Skills:
+Java, Spring Boot, Hibernate, Angular, MySQL, HTML, CSS, JavaScript, Git
+
+Experience:
+Full Stack Developer | TCS | Jun 2020 – Present
+- Designed backend microservices using Spring Boot.
+- Developed frontend using Angular.
+- Integrated API endpoints and performed unit testing.
+
+Education:
+B.E. in Information Technology, Mumbai University (2018)

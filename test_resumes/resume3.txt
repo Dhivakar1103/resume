@@ -1,0 +1,18 @@
+Name: Arjun Patel
+Email: arjun.patel@example.com
+Phone: +91 9988776655
+
+Professional Summary:
+Data Scientist with strong experience in machine learning, NLP, and data visualization.
+
+Skills:
+Python, TensorFlow, Scikit-learn, NLP, Pandas, NumPy, Power BI, SQL
+
+Experience:
+Data Scientist | Infosys | Mar 2021 – Present
+- Built machine learning models for customer churn prediction.
+- Worked on NLP-based sentiment analysis projects.
+- Visualized data insights using Power BI.
+
+Education:
+M.Tech in Data Science, IIT Madras (2020)
