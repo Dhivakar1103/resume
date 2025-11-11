@@ -57,12 +57,33 @@ label {
 
 input[type="text"],
 input[type="number"],
+input[type="file"],
 textarea {
     width: 100%;
     padding: 0.75rem;
     border: 1px solid var(--border-color);
     border-radius: 4px;
     font-size: 1rem;
+}
+
+.file-list {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.file-list .file-item {
+    padding: 0.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.file-list .file-item:not(:last-child) {
+    border-bottom: 1px solid var(--border-color);
 }
 
 textarea {
