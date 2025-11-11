@@ -62,10 +62,15 @@ def process():
             # No uploads — process files already in test_resumes
             ranked_candidates = process_resumes(job_requirements, resumes_root)
 
-        return jsonify({
+        # Provide some debug info in the response to help frontend diagnose empty results
+        resp = {
             'success': True,
-            'candidates': ranked_candidates
-        })
+            'candidates': ranked_candidates,
+            'processed_count': len(ranked_candidates)
+        }
+        if not ranked_candidates:
+            resp['message'] = 'No candidates were processed. Check uploads and server logs.'
+        return jsonify(resp)
     except Exception as e:
         return jsonify({
             'success': False,

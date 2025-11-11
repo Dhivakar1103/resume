@@ -56,13 +56,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 const allCandidates = data.candidates || [];
                 const displayCandidates = allCandidates.slice(0, topN);
 
-                displayResults(displayCandidates);
-                // store for export (only top-N)
-                candidatesCache = displayCandidates;
-                if (candidatesCache.length > 0) {
-                    exportControls.style.display = 'block';
-                } else {
+                if (displayCandidates.length === 0) {
+                    resultsDiv.innerHTML = `<div class="error-message">${data.message || 'No candidates found.'}</div>`;
                     exportControls.style.display = 'none';
+                    candidatesCache = [];
+                } else {
+                    displayResults(displayCandidates);
+                    // store for export (only top-N)
+                    candidatesCache = displayCandidates;
+                    exportControls.style.display = candidatesCache.length > 0 ? 'block' : 'none';
                 }
             } else {
                 displayError(data.error);

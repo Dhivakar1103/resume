@@ -11,11 +11,19 @@ class NLPProcessor:
     def __init__(self):
         # Load spaCy model (smaller model)
         self.nlp = spacy.load('en_core_web_sm')
-        
-        # Download required NLTK data
-        nltk.download('punkt')
-        nltk.download('stopwords')
-        
+
+        # Ensure required NLTK packages are available. Some environments
+        # (like Render) don't retain NLTK data between builds/runs, so
+        # download explicitly if missing.
+        required_nltk = ['punkt', 'stopwords', 'averaged_perceptron_tagger', 'punkt_tab']
+        for pkg in required_nltk:
+            try:
+                # Attempt to download; quiet to avoid noisy logs
+                nltk.download(pkg, quiet=True)
+            except Exception:
+                # If download fails, continue; errors will surface when tokenizers are used
+                pass
+
         self.stop_words = set(stopwords.words('english'))
     
     def extract_features(self, text):
