@@ -10,6 +10,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // Cache the last results so we can export them
     let candidatesCache = [];
 
+    // File list display
+    const fileInput = document.getElementById('resumes');
+    const fileList = document.getElementById('fileList');
+
+    fileInput.addEventListener('change', function(e) {
+        const files = Array.from(e.target.files);
+        fileList.innerHTML = files.map(file => `
+            <div class="file-item">
+                <span>${file.name}</span>
+                <small>${(file.size / 1024).toFixed(1)} KB</small>
+            </div>
+        `).join('');
+    });
+
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
 
@@ -82,7 +96,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             candidateCard.innerHTML = `
                 <h3>Rank #${index + 1}: ${name || candidate.filename}</h3>
-                <div class="candidate-score">Score: ${candidate.score.toFixed(2)}</div>
+                <div class="candidate-score">Score (out of 10): ${candidate.score.toFixed(2)}</div>
                 <div class="candidate-details">
                     ${email ? `<div><strong>Email:</strong> ${email}</div>` : ''}
                     ${phone ? `<div><strong>Phone:</strong> ${phone}</div>` : ''}

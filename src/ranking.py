@@ -41,7 +41,8 @@ class CandidateRanker:
             )
             score += exp_score * job_requirements.get('experience_weight', 0.3)
         
-        return score
+        # Scale score to be out of 10 for easier human interpretation
+        return float(score * 10.0)
     
     def _calculate_skill_score(self, candidate_skills, required_skills):
         """Calculate score based on matching skills."""
