@@ -1,5 +1,4 @@
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
 
 class CandidateRanker:
     """Rank candidates based on their resume features and job requirements."""

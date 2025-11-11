@@ -3,25 +3,18 @@ import spacy
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from transformers import AutoTokenizer, AutoModel
-import torch
 import numpy as np
 
 class NLPProcessor:
     """Process resume text using NLP techniques to extract relevant features."""
     
     def __init__(self):
-        # Load spaCy model
-        self.nlp = spacy.load('en_core_web_md')
-        
-        # Load BERT model and tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
-        self.model = AutoModel.from_pretrained('bert-base-uncased')
+        # Load spaCy model (smaller model)
+        self.nlp = spacy.load('en_core_web_sm')
         
         # Download required NLTK data
         nltk.download('punkt')
         nltk.download('stopwords')
-        nltk.download('averaged_perceptron_tagger')
         
         self.stop_words = set(stopwords.words('english'))
     
@@ -52,11 +45,9 @@ class NLPProcessor:
         education = self._extract_education(text)
         summary = self._extract_summary(text)
 
-        # Get BERT embeddings
-        inputs = self.tokenizer(text, return_tensors='pt', truncation=True, max_length=512)
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-        embeddings = outputs.last_hidden_state.mean(dim=1).numpy()
+        # Get embeddings from spaCy (lightweight alternative to BERT)
+        doc_embed = self.nlp(text)
+        embeddings = doc_embed.vector.reshape(1, -1) if doc_embed.vector.shape[0] > 0 else np.zeros((1, 96))
         
         # Extract skills (customize based on your needs)
         skills = self._extract_skills(doc)
