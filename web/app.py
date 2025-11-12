@@ -1,13 +1,16 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, abort
-from werkzeug.utils import secure_filename
-import urllib.parse
 import sys
 import os
 from pathlib import Path
-import json
 
-# Add the src directory to Python path
-sys.path.append(str(Path(__file__).parent.parent / 'src'))
+# Add the src directory to Python path FIRST, before any other imports
+src_path = str(Path(__file__).parent.parent / 'src')
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort
+from werkzeug.utils import secure_filename
+import urllib.parse
+import json
 
 from main import process_resumes
 
