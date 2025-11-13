@@ -1,243 +1,242 @@
+# processor.py (improved skills extraction and safe NLP init)
 import re
 import numpy as np
-import nltk
 
-# Try loading spaCy safely
+# spaCy + NLTK with safe initialization
 try:
     import spacy
-    try:
-        NLP_CORE = spacy.load("en_core_web_sm")
-    except Exception:
-        NLP_CORE = spacy.blank("en")     # fallback if model missing
+    _SPACY_AVAILABLE = True
 except Exception:
-    NLP_CORE = None
+    spacy = None
+    _SPACY_AVAILABLE = False
 
+import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-
 
 class NLPProcessor:
     """Process resume text using NLP techniques to extract relevant features."""
 
     def __init__(self):
-        # Ensure required NLTK packages (quiet mode)
-        required = ['punkt', 'stopwords', 'averaged_perceptron_tagger', 'wordnet']
-        for pkg in required:
+        # Try to initialize spaCy model; if not available, fall back to None
+        self.nlp = None
+        if _SPACY_AVAILABLE:
+            try:
+                self.nlp = spacy.load('en_core_web_sm')
+            except Exception:
+                try:
+                    from spacy.cli import download
+                    download('en_core_web_sm')
+                    self.nlp = spacy.load('en_core_web_sm')
+                except Exception:
+                    self.nlp = None
+
+        # Ensure required NLTK packages are available (best-effort)
+        for pkg in ['punkt', 'stopwords']:
             try:
                 nltk.download(pkg, quiet=True)
             except Exception:
                 pass
-
-        # Load stopwords (backup list if download fails)
         try:
-            self.stop_words = set(stopwords.words("english"))
+            self.stop_words = set(stopwords.words('english'))
         except Exception:
-            self.stop_words = {"the", "and", "is", "in", "to", "of", "for"}
-
-        # spaCy pipeline
-        self.nlp = NLP_CORE
+            self.stop_words = set(['the','and','is','in','to','of','a','for','on','with'])
 
     def extract_features(self, text):
-        """Extract features from resume text."""
-        if not text:
-            text = ""
-
-        # Basic preprocessing
-        tokens = []
+        """
+        Extract features from resume text.
+        Returns a dict with keys:
+          name, email, phone, entities (list), embedding (np.array),
+          skills (list), experience_years, education (list), summary,
+          text_length, processed_text
+        """
+        text = text or ""
+        # basic tokens
         try:
             tokens = [t for t in word_tokenize(text.lower()) if t.isalpha() and t not in self.stop_words]
         except Exception:
-            tokens = text.lower().split()
+            tokens = [t for t in re.findall(r'\b[a-zA-Z]+\b', text.lower()) if t not in self.stop_words]
 
-        # spaCy doc
+        # process with spaCy if available
         doc = self.nlp(text) if self.nlp else None
 
-        # Extract entities safely
-        entities = {}
+        # entities: collect all occurrences
+        entities = []
         if doc:
             for ent in doc.ents:
-                entities.setdefault(ent.label_, []).append(ent.text)
+                entities.append({'label': ent.label_, 'text': ent.text})
 
-        # Extract details
+        # contact and profile info
         name = self._extract_name(doc, text)
         email, phone = self._extract_contact_info(text)
         experience_years = self._extract_experience_years(text)
         education = self._extract_education(text)
         summary = self._extract_summary(text)
 
-        # Embeddings: spaCy vector or fallback hashed vector
-        embeddings = self._get_embeddings(doc, tokens)
+        # embedding: use spaCy vector when available & non-zero, else hashed bag-of-words
+        embedding = None
+        if doc is not None and hasattr(doc, 'vector'):
+            vec = doc.vector
+            try:
+                if isinstance(vec, (list, tuple, np.ndarray)) and np.linalg.norm(vec) > 1e-9:
+                    embedding = np.asarray(vec, dtype=float)
+            except Exception:
+                embedding = None
 
-        # Extract skills
-        skills = self._extract_skills(doc, text)
+        if embedding is None:
+            # hashed BOW fallback
+            from hashlib import blake2b
+            dim = 256
+            vec = np.zeros(dim, dtype=float)
+            for tok in tokens:
+                h = int.from_bytes(blake2b(tok.encode('utf-8'), digest_size=8).digest(), 'little')
+                vec[h % dim] += 1.0
+            norm = np.linalg.norm(vec)
+            if norm > 0:
+                vec = vec / norm
+            embedding = vec
+
+        # skills extraction (returns list)
+        skills = self._extract_skills(text, doc)
 
         return {
-            "name": name,
-            "email": email,
-            "phone": phone,
-            "entities": entities,
-            "embeddings": embeddings,
-            "skills": skills,
-            "experience_years": experience_years,
-            "education": education,
-            "summary": summary,
-            "text_length": len(tokens),
-            "processed_text": " ".join(tokens)
+            'name': name,
+            'email': email,
+            'phone': phone,
+            'entities': entities,
+            'embedding': embedding,     # single vector
+            'skills': skills,          # list
+            'experience_years': experience_years,
+            'education': education,
+            'summary': summary,
+            'text_length': len(tokens),
+            'processed_text': ' '.join(tokens)
         }
 
-    # ----------------------------------------------------------------------
-    # ✅ improved embedding extraction
-    # ----------------------------------------------------------------------
-    def _get_embeddings(self, doc, tokens):
-        """Return either spaCy vector or hashed fallback embeddings."""
-        if doc is not None and hasattr(doc, "vector"):
-            vec = np.asarray(doc.vector, dtype=float)
-            if vec.size > 0 and np.linalg.norm(vec) > 1e-9:
-                return vec.reshape(1, -1)
-
-        # Fallback hashed embedding
-        from hashlib import blake2b
-        dim = 256
-        vec = np.zeros(dim, dtype=float)
-
-        for t in tokens:
-            h = int.from_bytes(blake2b(t.encode("utf-8"), digest_size=8).digest(), "little")
-            vec[h % dim] += 1.0
-
-        if np.linalg.norm(vec) > 0:
-            vec /= np.linalg.norm(vec)
-
-        return vec.reshape(1, -1)
-
-    # ----------------------------------------------------------------------
-    # ✅ improved skills extraction
-    # ----------------------------------------------------------------------
-    def _extract_skills(self, doc, text):
-        """Extract skills from SKILLS section + curated list + fallback scanning."""
+    def _extract_skills(self, text, doc):
+        """Extract skills: look in SKILLS section first; then scan curated list in text."""
+        # 1) skills section
+        skills_section = []
         lines = text.splitlines()
         in_skills = False
-        skills_block = []
-
-        # Detect SKILLS section
         for line in lines:
             if in_skills:
-                if line.strip() == "" or re.match(r"^[A-Z ]{3,}$", line.strip()):
+                if line.strip() == '' or re.match(r'^[A-Z ]{3,}$', line.strip()):
                     break
-                skills_block.append(line.strip())
-
-            if line.strip().upper() == "SKILLS":
+                skills_section.append(line.strip())
+            if line.strip().upper() == 'SKILLS':
                 in_skills = True
+        extracted = []
+        if skills_section:
+            for l in skills_section:
+                parts = re.split(r'[;,|\u2022]', l)
+                for p in parts:
+                    p = p.strip()
+                    if p:
+                        extracted.append(p.lower())
 
-        # Normalize extracted raw skills
-        raw = []
-        for line in skills_block:
-            raw += re.split(r"[;,\|\u2022]", line)
-        raw = [s.strip().lower() for s in raw if s.strip()]
-
-        # Curated tech skill list
-        curated = set([
-            'python','java','c','c++','javascript','typescript','sql','mysql','postgresql','mongodb',
-            'aws','azure','gcp','docker','kubernetes','git','linux','html','css','react','angular','node.js',
-            'django','flask','spring','selenium','jira','jenkins','ci/cd','rest','api','pandas','numpy',
+        # curated skills
+        curated = {
+            'python','java','c++','c#','javascript','typescript','sql','mysql','postgresql','mongodb',
+            'aws','azure','gcp','docker','kubernetes','git','linux','html','css','react','angular',
+            'nodejs','django','flask','spring','selenium','jira','jenkins','ci/cd','pandas','numpy',
             'scikit-learn','tensorflow','keras','pytorch','matplotlib','spark','hadoop','tableau','powerbi',
-            'excel','oracle','bash','shell','json','xml','php','.net','postman','pytest','unittest','junit',
-            'hibernate','express','bootstrap','vue','redis','elasticsearch','graphql','firebase','android',
-            'ios','swift','objective-c','go','ruby','rails','scala','devops','etl','nlp','statistics',
-            'analysis','agile','scrum','kanban'
-        ])
+            'excel','oracle','bash','shell','json','xml','php','.net','postman','pytest','junit','hibernate',
+            'express','bootstrap','vue','redis','elasticsearch','graphql','firebase','android','ios','swift',
+            'go','ruby','rails','scala','devops','etl','nlp','statistics','scrum','agile'
+        }
 
         found = set()
+        # scan extracted list first (from SKILLS section)
+        for s in extracted:
+            s_norm = re.sub(r'[^a-z0-9\+#\.\-]+','', s.lower())
+            # map some common variants
+            s_norm = s_norm.replace('node.js','nodejs').replace('ci/cd','cicd').replace('.net','dotnet')
+            if s_norm in curated or any(c in s_norm for c in curated):
+                # try to map back to curated if possible
+                matched = None
+                for c in curated:
+                    if c in s_norm or s_norm in c:
+                        matched = c
+                        break
+                found.add(matched or s)
+        # scan full text tokens for curated skills
+        for token in re.findall(r'[a-zA-Z0-9\+#\.\-]+', text.lower()):
+            tnorm = token.replace('node.js','nodejs').replace('.net','dotnet')
+            if tnorm in curated:
+                found.add(tnorm)
 
-        # Match curated skills in text
-        for word in re.findall(r"[a-zA-Z][a-zA-Z0-9+\-\.#]*", text.lower()):
-            if word in curated:
-                found.add(word)
+        # final sorted list
+        skills_list = sorted(found)
+        return skills_list
 
-        # Normalize raw-SKILLS with curated list
-        normalized_raw = set()
-        for skill in raw:
-            if skill in curated:
-                normalized_raw.add(skill)
-
-        return sorted(found.union(normalized_raw))
-
-    # ----------------------------------------------------------------------
     def _extract_contact_info(self, text):
+        """Extract email and phone number using regex."""
         email = None
         phone = None
-
-        # Email
-        m = re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
+        m = re.search(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', text)
         if m:
-            email = m.group(0)
+            email = m.group(0).strip()
 
-        # Phone (international-friendly)
-        m = re.search(r"(?:\+?\d{1,3}[-\s]?)?(?:\(\d{2,4}\)|\d{3,4})[-\s]?\d{3}[-\s]?\d{3,4}", text)
+        # phone: permissive international pattern
+        m = re.search(r'(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{2,4}\)?[\s-]?){1,3}\d{3,4}', text)
         if m:
-            phone = m.group(0)
+            phone = re.sub(r'\s+', '', m.group(0)).strip()
 
         return email, phone
 
-    # ----------------------------------------------------------------------
     def _extract_name(self, doc, text):
+        """Prefer PERSON entity else top non-heading line."""
         if doc:
             for ent in doc.ents:
-                if ent.label_ == "PERSON":
-                    return ent.text
-
-        # fallback: first line that looks like a name
+                if getattr(ent, 'label_', '') == 'PERSON':
+                    return ent.text.strip()
         for line in text.splitlines():
             line = line.strip()
-            if line and len(line.split()) <= 4:
-                if line.upper() not in {"SUMMARY", "EXPERIENCE", "SKILLS", "EDUCATION", "OBJECTIVE"}:
-                    return line
+            if line and len(line.split()) <= 6 and line.upper() not in ('SUMMARY','OBJECTIVE','SKILLS','EXPERIENCE','EDUCATION'):
+                return line
         return None
 
-    # ----------------------------------------------------------------------
     def _extract_experience_years(self, text):
-        text_low = text.lower()
-
-        # Pattern: "3 years", "5+ years"
-        m = re.search(r"(\d+(?:\.\d+)?)(?:\+)?\s+years", text_low)
+        """Heuristic: 'X years' or year ranges."""
+        t = text.lower()
+        m = re.search(r'(\d+(?:\.\d+)?)(?:\+)?\s+years', t)
         if m:
             try:
                 return float(m.group(1))
-            except:
+            except Exception:
                 pass
-
-        # Pattern: "2018 - 2021"
-        years = re.findall(r"\b(?:19|20)\d{2}\b", text)
-        if len(years) >= 2:
+        years = re.findall(r'\b(?:19|20)\d{2}\b', text)
+        if years and len(years) >= 2:
             try:
-                y = list(map(int, years))
-                return float(max(y) - min(y))
-            except:
+                ys = [int(y) for y in years]
+                span = max(ys) - min(ys)
+                if span >= 0:
+                    return float(span)
+            except Exception:
                 pass
-
         return None
 
-    # ----------------------------------------------------------------------
     def _extract_education(self, text):
-        result = []
+        edu_lines = []
         for line in text.splitlines():
             ll = line.lower()
-            if any(k in ll for k in [
-                "bachelor","master","b.sc","m.sc","phd","university","college","b.tech","m.tech","b.e","m.e"
-            ]):
-                result.append(line.strip())
-        return result
+            if any(k in ll for k in ('bachelor','master','b.sc','m.sc','phd','university','college','btech','mtech','b.e','m.e')):
+                edu_lines.append(line.strip())
+        return edu_lines
 
-    # ----------------------------------------------------------------------
     def _extract_summary(self, text):
         lines = text.splitlines()
         for i, line in enumerate(lines):
-            if line.strip().upper() in {"SUMMARY","PROFESSIONAL SUMMARY","PROFILE","OBJECTIVE"}:
-                collected = []
-                for nxt in lines[i+1:i+6]:
-                    if nxt.strip():
-                        collected.append(nxt.strip())
-                return " ".join(collected)
-
-        # fallback: first paragraph
-        parts = [p.strip() for p in text.split("\n\n") if p.strip()]
-        return parts[0] if parts else None
+            if line.strip().upper() in ('SUMMARY','PROFESSIONAL SUMMARY','PROFILE','OBJECTIVE'):
+                summary_lines = []
+                for s in lines[i+1:i+6]:
+                    if s.strip():
+                        summary_lines.append(s.strip())
+                    if len(summary_lines) >= 3:
+                        break
+                return ' '.join(summary_lines)
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+        if paragraphs:
+            return paragraphs[0][:1000]
+        return None

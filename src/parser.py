@@ -1,3 +1,4 @@
+# parser.py (improved PDF parsing with fallbacks)
 import PyPDF2
 from docx import Document
 from pdfminer.high_level import extract_text
@@ -14,18 +15,19 @@ except Exception:
 
 import os
 import platform
-
-# Auto-detect Tesseract (Windows)
+# If on Windows, try to set common tesseract path automatically
 if OCR_AVAILABLE and platform.system().lower().startswith('win'):
     common_paths = [
         r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-        r"C:\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
     ]
     for p in common_paths:
         if os.path.exists(p):
-            pytesseract.pytesseract.tesseract_cmd = p
-            break
+            try:
+                pytesseract.pytesseract.tesseract_cmd = p
+                break
+            except Exception:
+                pass
 
 # Optional PDF->image support for OCR fallback
 try:
@@ -35,13 +37,15 @@ except Exception:
     convert_from_path = None
     PDF2IMAGE_AVAILABLE = False
 
-
 class ResumeParser:
     """Parser for extracting text from various resume formats."""
-
+    
     def parse(self, file_path):
+        """
+        Parse resume file and extract text content.
+        Returns a single text string ('' if nothing extracted).
+        """
         suffix = file_path.lower()
-
         if suffix.endswith('.pdf'):
             return self._parse_pdf(file_path)
         elif suffix.endswith('.docx'):
@@ -52,102 +56,93 @@ class ResumeParser:
             return self._parse_image(file_path)
         else:
             raise ValueError(f"Unsupported file format: {file_path}")
-
+            
     def _parse_txt(self, file_path):
+        """Extract text from TXT file."""
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read()
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+                return file.read()
         except Exception as e:
             raise Exception(f"Error parsing TXT file: {str(e)}")
-
-    # ------------------------------------------------------------
-    # ✅ NEW: Very robust PDF extractor
-    # ------------------------------------------------------------
+    
     def _parse_pdf(self, file_path):
-        """Extract text from PDF using pdfminer, PyPDF2, and OCR fallback."""
+        """Extract text from PDF file using pdfminer, PyPDF2 fallback and OCR fallback."""
         try:
-            # --- 1. Try pdfminer (best for text-based PDFs) ---
-            text = extract_text(file_path)
-            if text and text.strip():
-                return text.strip()
+            # 1) Try pdfminer (best for text PDFs)
+            try:
+                text = extract_text(file_path)
+                if text and text.strip():
+                    return text
+            except Exception:
+                text = ''
 
-            # --- 2. Try PyPDF2 (some PDFs decode only with this) ---
+            # 2) Try PyPDF2 per-page extraction (some PDFs)
             try:
                 with open(file_path, 'rb') as f:
                     reader = PyPDF2.PdfReader(f)
                     pages_text = []
-
                     for page in reader.pages:
                         try:
-                            ptext = page.extract_text() or ''
+                            t = page.extract_text()
+                            if t:
+                                pages_text.append(t)
                         except Exception:
-                            ptext = ''
-                        pages_text.append(ptext)
-
-                    combined = "\n".join(pages_text).strip()
+                            pages_text.append('')
+                    combined = '\n'.join(pages_text).strip()
                     if combined:
                         return combined
             except Exception:
                 pass
 
-            # --- 3. OCR fallback for scanned/image PDFs ---
+            # 3) OCR fallback (image/PDF scanned) if available
             if OCR_AVAILABLE and PDF2IMAGE_AVAILABLE:
                 try:
                     poppler_path = None
-
-                    # Auto-detect Poppler on Windows
                     if platform.system().lower().startswith('win'):
                         possible = [
-                            r"C:\poppler\Library\bin",
-                            r"C:\poppler\bin",
                             r"C:\Program Files\poppler-23.05.0\Library\bin",
-                            r"C:\Program Files\poppler-24.02.0\Library\bin"
+                            r"C:\Program Files\poppler-21.03.0\Library\bin",
+                            r"C:\Program Files\poppler\Library\bin",
+                            r"C:\poppler\bin"
                         ]
-                        for p in possible:
-                            if os.path.exists(p):
-                                poppler_path = p
+                        for pp in possible:
+                            if os.path.exists(pp):
+                                poppler_path = pp
                                 break
-
-                    # Convert PDF pages to images
-                    images = convert_from_path(
-                        file_path,
-                        poppler_path=poppler_path
-                    ) if poppler_path else convert_from_path(file_path)
-
+                    images = convert_from_path(file_path, poppler_path=poppler_path) if poppler_path else convert_from_path(file_path)
                     ocr_text = []
                     for img in images:
                         try:
                             ocr_text.append(pytesseract.image_to_string(img))
                         except Exception:
-                            ocr_text.append("")
-
-                    final = "\n".join(ocr_text).strip()
-                    if final:
-                        return final
-
+                            ocr_text.append('')
+                    combined = '\n'.join(ocr_text).strip()
+                    if combined:
+                        return combined
                 except Exception:
                     pass
 
-            # --- Final fallback ---
-            return ""
-
+            # Nothing extracted
+            return ''
         except Exception as e:
             raise Exception(f"Error parsing PDF file: {str(e)}")
-
+    
     def _parse_docx(self, file_path):
+        """Extract text from DOCX file."""
         try:
             doc = Document(file_path)
-            return "\n".join(p.text for p in doc.paragraphs)
+            return '\n'.join([paragraph.text for paragraph in doc.paragraphs])
         except Exception as e:
             raise Exception(f"Error parsing DOCX file: {str(e)}")
 
     def _parse_image(self, file_path):
+        """Extract text from image files using Tesseract OCR (pytesseract)."""
         if not OCR_AVAILABLE:
-            raise Exception(
-                "OCR libraries not installed. Install pillow + pytesseract + Tesseract."
-            )
+            raise Exception("OCR libraries not installed (Pillow/pytesseract). Install 'pillow' and 'pytesseract' and ensure Tesseract is installed on your system.")
         try:
             img = Image.open(file_path)
-            return pytesseract.image_to_string(img)
+            text = pytesseract.image_to_string(img)
+            return text
         except Exception as e:
             raise Exception(f"Error parsing image file via OCR: {str(e)}")
+# ----------------------------------------------------------------------

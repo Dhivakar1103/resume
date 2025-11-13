@@ -78,43 +78,32 @@ document.addEventListener('DOMContentLoaded', function() {
     function displayResults(candidates) {
         resultsDiv.innerHTML = '';
 
+        // Show only Name, Email, Score and Download link per candidate
         candidates.forEach((candidate, index) => {
-            const candidateCard = document.createElement('div');
-            candidateCard.className = 'candidate-card';
-
             const features = candidate.features || {};
             const name = features.name || '';
             const email = features.email || '';
-            const phone = features.phone || '';
-            const experience = features.experience_years !== undefined && features.experience_years !== null ? features.experience_years : '';
-            const education = (features.education && features.education.length) ? features.education.join(', ') : '';
-            const summary = features.summary || '';
 
-            const skills = features.skills || [];
-            const skillsHtml = skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('');
-
-            // Download Resume button
-            const downloadBtnHtml = candidate.filename ? `<a href="/download_resume/${encodeURIComponent(candidate.filename)}" class="submit-btn" style="margin-top:0.5rem;display:inline-block;" download>Download Resume</a>` : '';
-
-            candidateCard.innerHTML = `
-                <h3>Rank #${index + 1}: ${name || candidate.filename}</h3>
-                <div class="candidate-score">Score (out of 10): ${candidate.score.toFixed(2)}</div>
-                <div class="candidate-details">
-                    ${email ? `<div><strong>Email:</strong> ${email}</div>` : ''}
-                    ${phone ? `<div><strong>Phone:</strong> ${phone}</div>` : ''}
-                    ${experience !== '' ? `<div><strong>Experience (years):</strong> ${experience}</div>` : ''}
-                    ${education ? `<div><strong>Education:</strong> ${education}</div>` : ''}
+            const card = document.createElement('div');
+            card.className = 'candidate-card minimal';
+            card.innerHTML = `
+                <div class="candidate-row">
+                    <div class="candidate-left">
+                        <h3>Rank #${index + 1}: ${name || candidate.filename}</h3>
+                        ${email ? `<div><strong>Email:</strong> ${email}</div>` : ''}
+                    </div>
+                    <div class="candidate-right">
+                        <div class="candidate-score">Score: ${candidate.score.toFixed(2)}</div>
+                        ${candidate.filename ? `<a href="/download_resume/${encodeURIComponent(candidate.filename)}" class="submit-btn" download>Download Resume</a>` : ''}
+                    </div>
                 </div>
-                ${summary ? `<div class="candidate-summary"><strong>Summary:</strong> ${summary}</div>` : ''}
-                <div class="candidate-skills">
-                    <strong>Matched Skills:</strong><br>
-                    ${skillsHtml}
-                </div>
-                ${downloadBtnHtml}
             `;
 
-            resultsDiv.appendChild(candidateCard);
+            resultsDiv.appendChild(card);
         });
+
+        // Hide export controls since user requested minimal view
+        if (exportControls) exportControls.style.display = 'none';
     }
 
     // Export handlers

@@ -3,6 +3,8 @@ from tkinter import ttk, scrolledtext
 import json
 from pathlib import Path
 import sys
+import os
+import platform
 sys.path.append(str(Path(__file__).parent.parent / 'src'))
 from main import process_resumes
 
@@ -74,6 +76,9 @@ class ResumeScreeningUI:
         
         self.results_text = scrolledtext.ScrolledText(results_frame, width=70, height=15)
         self.results_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # Container for per-candidate controls (buttons/labels)
+        self.results_list = ttk.Frame(results_frame)
+        self.results_list.grid(row=1, column=0, sticky=(tk.W, tk.E))
         
     def process_resumes(self):
         # Collect job requirements
@@ -100,11 +105,39 @@ class ResumeScreeningUI:
         self.results_text.insert(tk.END, "-----------------\n")
         
         for rank, candidate in enumerate(ranked_candidates, 1):
-            self.results_text.insert(tk.END, 
-                f"{rank}. {candidate['filename']} - Score: {candidate['score']:.2f}\n")
-            if 'features' in candidate and 'skills' in candidate['features']:
-                self.results_text.insert(tk.END, f"   Matched Skills: {', '.join(candidate['features']['skills'])}\n")
+            # minimal display: name, email, score, and a button to open/download
+            feats = candidate.get('features', {})
+            name = feats.get('name') or candidate.get('filename')
+            email = feats.get('email') or ''
+            score = candidate.get('score', 0.0)
+
+            # Append a simple text summary to the scrolled text for quick view
+            self.results_text.insert(tk.END, f"{rank}. {name} - Score: {score:.2f}\n")
+            if email:
+                self.results_text.insert(tk.END, f"   Email: {email}\n")
             self.results_text.insert(tk.END, "\n")
+
+            # Create a button to open the resume file (from test_resumes)
+            try:
+                resume_path = Path(__file__).parent.parent / 'test_resumes' / candidate.get('filename', '')
+                if resume_path.exists():
+                    row = ttk.Frame(self.results_list)
+                    row.grid(sticky=(tk.W), pady=2)
+                    lbl = ttk.Label(row, text=f"{rank}. {name}")
+                    lbl.grid(row=0, column=0, padx=(0,8))
+                    def _open(p=resume_path):
+                        try:
+                            if platform.system().lower().startswith('win'):
+                                os.startfile(str(p))
+                            else:
+                                import subprocess
+                                subprocess.Popen(['xdg-open' if platform.system().lower()!='darwin' else 'open', str(p)])
+                        except Exception:
+                            pass
+                    btn = ttk.Button(row, text="Open Resume", command=_open)
+                    btn.grid(row=0, column=1)
+            except Exception:
+                pass
 
 def main():
     root = tk.Tk()
